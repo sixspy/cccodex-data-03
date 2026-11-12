@@ -28,6 +28,22 @@ code { font-size: 0.85em; }
 .tag.done { background: #1e4d3a; color: #9fe0c0; }
 .tag.draft { background: #3a4556; }
 .tag.failed { background: #5a2a2a; color: #ffb3b3; }
+.tag.blocked { background: #5a4a2a; color: #ffd99a; }
+.tag.running { background: #243a5a; color: #9cc4ff; }
+.grid-form.wide { grid-template-columns: 1fr 1fr 1fr 1fr auto; }
+@media (max-width: 900px) { .grid-form.wide { grid-template-columns: 1fr; } }
+.in-window { color: var(--ok); font-weight: 600; }
+.out-window { color: var(--err); font-weight: 600; }
+.pending-badge {
+  display: inline-block; padding: 0.1rem 0.45rem; border-radius: 4px;
+  font-size: 0.8rem; background: #5a4a2a; color: #ffd99a;
+}
+.limit-badge {
+  display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+  font-size: 0.82rem; background: #5a2a2a; color: #ffb3b3; font-weight: 700;
+}
+.pending-row { background: rgba(255, 217, 154, 0.06); }
+.lock-box { border: 1px solid #5a4a2a; border-radius: 6px; padding: 0.9rem; margin: 0.75rem 0; }
 .flash { list-style: none; padding: 0 1.25rem; }
 .flash .ok { color: var(--ok); }
 .flash .error { color: var(--err); }

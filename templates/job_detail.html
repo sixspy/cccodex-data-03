@@ -4,17 +4,77 @@
 <p><a href="{{ url_for('jobs.list_jobs') }}">← 返回列表</a></p>
 <section class="card">
   <h1>{{ job.name }}</h1>
-  <p>种子 <code>{{ job.seed_path }}</code> · 状态 <span class="tag {{ job.status }}">{{ job.status }}</span></p>
-  {% if job.status == 'draft' %}
+  <p>
+    种子 <code>{{ job.seed_path }}</code> · 状态
+    <span class="tag {{ job.status }}">{{ job.status }}</span>
+  </p>
+  <p>
+    每日可运行区间（服务端时间，半开区间）：
+    <strong>{{ '%02d'|format(job.start_hour) }}:00 – {{ '%02d'|format(job.end_hour) }}:00</strong>
+  </p>
+  <p class="muted">
+    服务端当前时刻：{{ server_now.strftime('%Y-%m-%d %H:%M') }} ·
+    此刻{% if in_window %}<span class="in-window">在区间内</span>{% else %}<span class="out-window">不在区间内</span>{% endif %}
+    （判定只使用服务端时钟）
+  </p>
+
+  {% if job.status == 'running' %}
+  <p class="muted">本次运行尚未结束，运行结束前不能再次触发。</p>
+  {% elif locked %}
+  <div class="lock-box">
+    <p class="limit-badge">当天失败/越界已达 {{ max_daily_failures }} 次上限，当天不能再补跑。</p>
+    <p class="muted">想继续必须填写解除原因（不能为空白），解除仅对当天有效：</p>
+    <form method="post" action="{{ url_for('jobs.unlock_view', job_id=job.id) }}">
+      <label>解除原因
+        <input name="reason" placeholder="例：源站临时故障已恢复" required />
+      </label>
+      <button type="submit">解除当天上限</button>
+    </form>
+  </div>
+  {% else %}
   <form method="post" action="{{ url_for('jobs.run_job_view', job_id=job.id) }}">
     <button type="submit">运行采集（同步）</button>
   </form>
-  {% elif job.status == 'done' %}
-  <p class="muted">已完成于 {{ job.finished_at or '—' }}</p>
+  <p class="muted">
+    区间外运行：只登记待补跑、不写正式结果，并计入当天失败次数；
+    区间内运行：只消化待补跑编码，不会重新抓取整个目录。
+  </p>
   {% endif %}
+
+  <p>
+    当天失败次数：<strong>{{ daily.fail_count }} / {{ max_daily_failures }}</strong>
+    {% if daily.unlock_reason %}
+    · 已于 {{ daily.unlocked_at }} 解除，原因：{{ daily.unlock_reason }}（仅当天有效）
+    {% endif %}
+  </p>
+  {% if job.finished_at %}<p class="muted">最近一次结束于 {{ job.finished_at }}</p>{% endif %}
 </section>
+
 <section class="card">
-  <h2>落库记录</h2>
+  <h2>待补跑队列（{{ pending|length }} 条）</h2>
+  <p class="muted">
+    区间外触发时见到的编码进入此队列并注明原因；区间内再次运行时只处理这里尚未入库的编码，
+    处理成功后条目从队列消失并出现在下方「落库记录」。
+  </p>
+  <table>
+    <thead><tr><th>item_key</th><th>标题</th><th>原因</th><th>登记时间</th></tr></thead>
+    <tbody>
+      {% for p in pending %}
+      <tr class="pending-row">
+        <td><code>{{ p.item_key }}</code></td>
+        <td>{{ p.title }}</td>
+        <td><span class="pending-badge">{{ reason_text.get(p.reason, p.reason) }}</span></td>
+        <td>{{ p.created_at }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">暂无待补跑编码</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>落库记录（正式结果，{{ records|length }} 条）</h2>
   <table>
     <thead><tr><th>item_key</th><th>标题</th><th>时间</th></tr></thead>
     <tbody>
@@ -25,7 +85,7 @@
         <td>{{ r.fetched_at }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="3" class="muted">尚无记录</td></tr>
+      <tr><td colspan="3" class="muted">尚无记录（区间外触发不会写入这里）</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -3,7 +3,11 @@
 {% block body %}
 <section class="card">
   <h1>采集任务</h1>
-  <form class="grid-form" method="post" action="{{ url_for('jobs.create_job') }}">
+  <p class="muted">
+    服务端当前时刻：<strong>{{ server_now.strftime('%Y-%m-%d %H:%M') }}</strong>
+    （是否处于运行区间完全由服务端钟点判定，浏览器本地时钟不参与）
+  </p>
+  <form class="grid-form wide" method="post" action="{{ url_for('jobs.create_job') }}">
     <label>任务名 <input name="name" placeholder="例：alpha 目录首轮" required /></label>
     <label>种子路径
       <select name="seed_path" required>
@@ -12,28 +16,60 @@
         {% endfor %}
       </select>
     </label>
+    <label>起始钟点（0-23）
+      <input name="start_hour" type="number" min="0" max="23" step="1" required />
+    </label>
+    <label>结束钟点（0-23，须晚于起始）
+      <input name="end_hour" type="number" min="1" max="23" step="1" required />
+    </label>
     <button type="submit">创建任务</button>
   </form>
+  <p class="muted">
+    区间为半开区间 [起始, 结束)：仅当服务端钟点落在区间内才允许正式写入；区间外触发只会把见到的编码登记为「待补跑」，不会入库。
+  </p>
 </section>
 <section class="card">
   <table>
     <thead>
       <tr>
-        <th>ID</th><th>名称</th><th>种子</th><th>状态</th><th>记录数</th><th></th>
+        <th>ID</th><th>名称</th><th>种子</th><th>状态</th>
+        <th>起始钟点</th><th>结束钟点</th><th>此刻在区间内</th>
+        <th>待补跑条数</th><th>当天失败次数</th><th>记录数</th><th></th>
       </tr>
     </thead>
     <tbody>
       {% for j in jobs %}
+      {% set d = daily_rows.get(j.id) %}
+      {% set fails = d.fail_count if d else 0 %}
       <tr>
         <td>{{ j.id }}</td>
         <td>{{ j.name }}</td>
         <td><code>{{ j.seed_path }}</code></td>
         <td><span class="tag {{ j.status }}">{{ j.status }}</span></td>
+        <td>{{ '%02d'|format(j.start_hour) }}:00</td>
+        <td>{{ '%02d'|format(j.end_hour) }}:00</td>
+        <td>
+          {% if in_window_map.get(j.id) %}
+          <span class="in-window">是</span>
+          {% else %}
+          <span class="out-window">否</span>
+          {% endif %}
+        </td>
+        <td>
+          {% set pc = pending_counts.get(j.id, 0) %}
+          {% if pc > 0 %}<strong class="pending-badge">{{ pc }} 条待补跑</strong>{% else %}0{% endif %}
+        </td>
+        <td>
+          {{ fails }} / {{ max_daily_failures }}
+          {% if fails >= max_daily_failures %}
+          <span class="limit-badge">已达上限</span>
+          {% endif %}
+        </td>
         <td>{{ counts.get(j.id, 0) }}</td>
         <td><a href="{{ url_for('jobs.detail', job_id=j.id) }}">详情</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="muted">尚无任务，请先创建</td></tr>
+      <tr><td colspan="11" class="muted">尚无任务，请先创建</td></tr>
       {% endfor %}
     </tbody>
   </table>

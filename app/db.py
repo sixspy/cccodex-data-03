@@ -42,6 +42,8 @@ def init_db(app):
                 name TEXT NOT NULL,
                 seed_path TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'draft',
+                start_hour INTEGER NOT NULL DEFAULT 0,
+                end_hour INTEGER NOT NULL DEFAULT 24,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 finished_at TEXT
             );
@@ -54,6 +56,30 @@ def init_db(app):
                 fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE(job_id, item_key)
             );
+            CREATE TABLE IF NOT EXISTS crawl_pending (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL REFERENCES crawl_jobs(id) ON DELETE CASCADE,
+                item_key TEXT NOT NULL,
+                title TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(job_id, item_key)
+            );
+            CREATE TABLE IF NOT EXISTS job_daily_state (
+                job_id INTEGER NOT NULL REFERENCES crawl_jobs(id) ON DELETE CASCADE,
+                day TEXT NOT NULL,
+                fail_count INTEGER NOT NULL DEFAULT 0,
+                unlock_reason TEXT,
+                unlocked_at TEXT,
+                PRIMARY KEY (job_id, day)
+            );
             """
         )
+        # 轻量迁移：为旧库补齐钟点区间列（新库建表时已包含）
+        legacy_cols = {row["name"] for row in db.execute("PRAGMA table_info(crawl_jobs)")}
+        if "start_hour" not in legacy_cols:
+            db.execute("ALTER TABLE crawl_jobs ADD COLUMN start_hour INTEGER NOT NULL DEFAULT 0")
+        if "end_hour" not in legacy_cols:
+            db.execute("ALTER TABLE crawl_jobs ADD COLUMN end_hour INTEGER NOT NULL DEFAULT 24")
         db.commit()
